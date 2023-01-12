@@ -1,0 +1,134 @@
+Vector3f ans1,ans2,ans3,vec1,vec2,vec3;
+    
+    vec1=_v[1]-_v[0];// define a triangle margin vector
+    ans1=vec1.cross(Vector3f(x-_v[0][0],y-_v[0][1],0));// caculate the cross vector
+
+    vec2=_v[2]-_v[1];// similar to the above program
+    ans2=vec2.cross(Vector3f(x-_v[1][0],y-_v[1][1],0));
+
+    vec3=_v[0]-_v[2];
+    ans3=vec3.cross(Vector3f(x-_v[2][0],y-_v[2][1],0));
+
+    if(ans1[2]>=0&&ans2[2]>=0&&ans3[2]>=0) return true;
+    else if(ans1[2]<0&&ans2[2]<0&&ans3[2]<0) return true;
+    else return false;
+
+
+
+void rst::rasterizer::rasterize_triangle(const Triangle& t) {
+    auto v = t.toVector4();
+    
+    // TODO : Find out the bounding box of current triangle.
+    // iterate through the pixel and find if the current pixel is inside the triangle
+    int x_min=std::min(v[0].x(),std::min(v[1].x(),v[2].x()));
+    int x_max=std::max(v[0].x(),std::max(v[1].x(),v[2].x()));
+    int y_min=std::min(v[0].y(),std::min(v[1].y(),v[2].y()));
+    int y_max=std::max(v[0].y(),std::max(v[1].y(),v[2].y()));
+
+    for(int i=x_min;i<=x_max;i++)
+    {
+        for(int j=y_min;j<=y_max;j++)
+        {
+            if(insideTriangle(i+0.5,j+0.5,t.v))
+            {
+                auto tup = computeBarycentric2D(i+0.5, j+0.5, t.v);
+                float alpha,beta,gamma;
+                std::tie(alpha,beta,gamma)=tup;
+                float w_reciprocal = 1.0/(alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                z_interpolated *= w_reciprocal;
+
+                int cur_index=get_index(i,j);
+                if(z_interpolated<depth_buf[cur_index])
+                {
+                    depth_buf[cur_index]=z_interpolated;
+                    Eigen::Vector3f point;
+                    point<<i,j,z_interpolated;
+                    set_pixel(point,t.getColor());
+                }        
+            }
+        }
+    }
+    // If so, use the following code to get the interpolated z value.
+
+
+    // TODO : set the current pixel (use the set_pixel function) to the color of the triangle (use getColor function) if it should be painted.
+}
+
+void rst::rasterizer::set_model(const Eigen::Matrix4f& m)
+{
+    model = m;
+}
+
+void rst::rasterizer::set_view(const Eigen::Matrix4f& v)
+{
+    view = v;
+}
+
+
+Eigen::Matrix4f M_p = Eigen::Matrix4f::Identity();//define a matrix for convert perspective projection to orthographic projection
+    M_p << zNear,0,0,0,
+           0,zNear,0,0,
+           0,0,zNear+zFar,(-1*zNear*zFar),
+           0,0,1,0;
+    float angle = eye_fov*MY_PI/180;
+    float t = tan(angle/2)*(-zNear);
+    float b = -1.0*t;// b and t is symmetric
+    float r = t*aspect_ratio;// solve x coordinate
+    float l = -1.0*r;//r and l is symmetric
+
+    Eigen::Matrix4f M_s = Eigen::Matrix4f::Identity();//define a convert matrix to normalize
+    M_s << 2/(r-l),0,0,0,
+           0,2/(t-b),0,0,
+           0,0,2/(zNear-zFar),0,
+           0,0,0,1;
+    
+    Eigen::Matrix4f M_t = Eigen::Matrix4f::Identity();//define a convert matrix for transform to origin point
+    M_t << 1,0,0,(-1.0)*(r+l)/2,
+           0,1,0,(-1.0)*(t+b)/2,
+           0,0,1,(-1.0)*(zNear+zFar)/2,
+           0,0,0,1;
+    projection = M_s*M_t*M_p*projection;
+
+
+
+
+void rst::rasterizer::rasterize_triangle(const Triangle& t) {
+    auto v = t.toVector4();
+    
+    // TODO : Find out the bounding box of current triangle.
+    // iterate through the pixel and find if the current pixel is inside the triangle
+    int x_min=std::min(v[0].x(),std::min(v[1].x(),v[2].x()));
+    int x_max=std::max(v[0].x(),std::max(v[1].x(),v[2].x()));
+    int y_min=std::min(v[0].y(),std::min(v[1].y(),v[2].y()));
+    int y_max=std::max(v[0].y(),std::max(v[1].y(),v[2].y()));
+
+    for(int i=x_min;i<=x_max;i++)
+    {
+        for(int j=y_min;j<=y_max;j++)
+        {
+            if(insideTriangle(i+0.5,j+0.5,t.v))
+            {
+                auto tup = computeBarycentric2D(i+0.5, j+0.5, t.v);
+                float alpha,beta,gamma;
+                std::tie(alpha,beta,gamma)=tup;
+                float w_reciprocal = 1.0/(alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                z_interpolated *= w_reciprocal;
+
+                int cur_index=get_index(i,j);
+                if(z_interpolated<depth_buf[cur_index])
+                {
+                    depth_buf[cur_index]=z_interpolated;
+                    Eigen::Vector3f point;
+                    point<<i,j,z_interpolated;
+                    set_pixel(point,t.getColor());
+                }        
+            }
+        }
+    }
+    // If so, use the following code to get the interpolated z value.
+
+
+    // TODO : set the current pixel (use the set_pixel function) to the color of the triangle (use getColor function) if it should be painted.
+}
